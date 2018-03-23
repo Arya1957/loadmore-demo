@@ -1,82 +1,67 @@
-var btn = document.querySelector('#load-more'); // 获取要监听的对象（加载更多）
-var ct = document.querySelector('#ct'); // 获取要添加元素的父元素
-var curIndex = 0; // 当前要加载的数据的序号
-var len = 5; // 每次要加载的数量
-var lock = false; //状态锁，用于判断是否在加载数据
+var btn = document.querySelector('#load-more'),
+    ct = document.querySelector('#ct'),
+    curIndex = 2;
 
-// 监听
+var isDataArrive = true; // 设置状态锁
 btn.addEventListener('click', function (e) {
-    e.preventDefault();
-    if (lock) {
+    e.preventDefault(); //阻止点击a时跳到页面顶部，也可以设置 a href = 'javascript:void(0)'
+
+    if (!isDataArrive) {
         return;
     }
-    lock = true; //发请求之前上锁
-    ajax({
-        url: '/loadmore',
-        data: {
-            idx: curIndex,
-            len: 5
-        }, function (data) {
-            appendData(data);
-            lock = false; // 数据到来之后解锁
-            curIndex += len; //修改序号
-        }
-    })
+    loadData(function (lists) {
+        renderPage(lists);
+        curIndex += 6;
+        isDataArrive =true
+    });
+    isDataArrive = false
 });
 
 
-// 添加元素
-function appendData(data) {
-    var fragment = document.createDocumentFragment(); // 声明要添加的片段
-    for (var i = 0; i < len; i++) {
-        var liNodes = document.createElement('li');
-        liNodes.innerText = '内容' + data[i];
-        fragment.appendChild(liNodes);
-    }
+function loadData(callback) {
+    ajax({
+        type: 'get',
+        url: '/loadmore',
+        data: {
+            index: curIndex,
+            length: 5
+        },
+        onSuccess: callback, // 成功的时候调用的函数
+        onError: function () {
+            console.log('error')
+        } // 失败的时候调用的函数
+    })
+}
 
+function renderPage(lists) {
+    var fragment = document.createDocumentFragment();
+    for (var i = 0; i < lists.length; i++) {
+        var nodes = document.createElement('li');
+        nodes.innerText = lists[i];
+        fragment.appendChild(nodes)
+    }
     ct.appendChild(fragment);
 }
 
-// ajax
+// 封装ajax
+
 function ajax(opts) {
-    var url = opts.url,
-        type = opts.type || 'GET',
-        dataType = opts.dataType || 'json',
-        onsuccess = opts.onsuccess || function () {
-        },
-        onerror = opts.onerror || function () {
-        },
-        data = opts.data || {};
-
-    var dataStr = [];
-    for (var key in data) {
-        dataStr.push(key + '=' + data[key])
-    }
-    dataStr = dataStr.join('&');
-
-    if (type === 'GET') {
-        url += '?' + dataStr
-    }
-
-
     var xhr = new XMLHttpRequest();
-    xhr.open(type, url, true);
     xhr.onload = function () {
-        if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === 304) { //请求成功
-            if (dataType === 'json') {
-                onsuccess(JSON.parse(xhr.responseText))
-            } else {
-                onsuccess(xhr.responseText)
-
-            }
+        if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === 304) {
+            var data = JSON.parse(xhr.responseText);
+            opts.onSuccess(data)
         } else {
-            onerror()
+            opts.onError()
         }
     };
 
-    if (type === 'POST') {
-        xhr.send(dataStr)
-    } else {
-        xhr.send()
+    var query = '?';
+    for(key in opts.data){
+        query += key + '=' + opts.data[key] + '&';
     }
+    query = query.substr(0,query.length-1);
+    xhr.open(opts.type, opts.url + query, true);
+    xhr.send()
+
 }
